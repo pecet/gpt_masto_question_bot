@@ -48,7 +48,7 @@ impl PreviousGptResponses {
             let request = CreateCompletionRequestArgs::default()
                 .model("text-davinci-003")
                 .prompt(prompt)
-                .max_tokens(256_u16)
+                .max_tokens(512_u16)
                 .temperature(0.1)
                 .frequency_penalty(0.0)
                 .presence_penalty(0.0)
@@ -112,7 +112,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("Loaded {} previous responses", &previous_responses.responses.len());
 
     let mut similarlity = 1.0;
-    let retries = 6;
+    let retries = 7;
 
     for i in 1..retries {
         println!("---- Going for GPT response retry: {} of {}", &i, &retries);
@@ -123,7 +123,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         println!("Successfully parsed JSON from gpt:");
         println!("{:#?}", &gpt_response);
     
-        similarlity = previous_responses.query_similarlity(&gpt_response.question, 5).await?;
+        similarlity = previous_responses.query_similarlity(&gpt_response.question, 6).await?;
         println!("Similarlity: {}", &similarlity);
         if similarlity <= 0.35_f64 {
             println!("**** Using response as similarity <= 0.35 ***");
