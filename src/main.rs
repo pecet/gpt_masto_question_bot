@@ -7,8 +7,19 @@ use std::fs;
 
 #[derive(Clone, Deserialize, Serialize, Debug)]
 struct GptResponse {
-    question: String, 
+    question: String,
     answers: Vec<String>,
+}
+
+impl GptResponse {
+    fn check_anwsers_length(&self) -> bool {
+        for answer in &self.answers {
+            if answer.len() > 50 {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 #[derive(Clone, Deserialize, Serialize, Debug, Default)]
@@ -125,7 +136,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     
         similarlity = previous_responses.query_similarlity(&gpt_response.question, 6).await?;
         println!("Similarlity: {}", &similarlity);
-        if similarlity <= 0.35_f64 {
+        if similarlity <= 0.35_f64 && gpt_response.check_anwsers_length() {
             println!("**** Using response as similarity <= 0.35 ***");
             let response = send_mastodon_poll(gpt_response.clone()).await?;
             println!("Response from mastodon server:");
