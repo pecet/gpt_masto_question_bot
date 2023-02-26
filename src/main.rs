@@ -88,7 +88,7 @@ async fn send_mastodon_poll(gpt_response: GptResponse) -> Result<String, Box<dyn
         ("poll[options][]", gpt_response.answers[1].clone()),
         ("poll[options][]", gpt_response.answers[2].clone()),
         ("poll[options][]", gpt_response.answers[3].clone()),
-        ("poll[expires_in]", "28800".to_owned()),
+        ("poll[expires_in]", "72000".to_owned()),
     ];
     let instance = env::var("MAST_INSTANCE")?;
     let token = env::var("MAST_TOKEN")?;
