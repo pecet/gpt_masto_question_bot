@@ -17,9 +17,9 @@ async fn query_gpt() -> Result<String, Box<dyn Error>> {
         .model("text-davinci-003")
         .prompt(prompt)
         .max_tokens(256_u16)
-        .temperature(0.87)
+        .temperature(0.99)
         .frequency_penalty(0.0)
-        .presence_penalty(0.27)
+        .presence_penalty(1.8)
         .build()?;
     let response = client.completions().create(request).await?;
     let first_response = response.choices.get(0).ok_or("No first item in response")?;
