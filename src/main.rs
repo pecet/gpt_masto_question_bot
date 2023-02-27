@@ -39,11 +39,16 @@ impl PreviousGptResponses {
     }
 
     fn normalize_string(&self, input: &String) -> String {
-        let output = input.to_ascii_lowercase();
-        let what_to_replace = vec!["what", "where", "who", "which", "do you", "whom", "consider", "opinion", "?", "think", "you", "to have"];
+        let mut output = input.to_ascii_lowercase();
+        let what_to_replace = vec![
+            "what", "where", "who", "which", "do you", "whom", "consider", "opinion", "?", 
+            "think", "you", "have", "be", "to", "as", "in", "ever", "have", "had", "if", "chance"
+        ];
         for from in what_to_replace {
-            output.replace(from, "");
+            output = output.replace(from, "");
         }
+        output = output.trim().to_owned();
+        //println!("Before normalization='{}' after='{}'", input, &output);
         output
     }
 
@@ -145,7 +150,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut previous_responses: PreviousGptResponses = serde_json::from_str(&previous_responses_string).unwrap_or(PreviousGptResponses::default());
     println!("Loaded {} previous responses", &previous_responses.responses.len());
 
-    let retries = 8;
+    let retries = 10;
 
     for i in 1..retries {
         println!("---- Going for GPT response retry: {} of {}", &i, &retries);
@@ -159,14 +164,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let computed_similarlity = previous_responses.compute_similarlity_of_all(&gpt_response.question.to_owned());
         println!("Similarlity computer locally: {}", computed_similarlity);
     
-        if gpt_response.check_anwsers_length() && computed_similarlity <= 0.49_f64{
+        if gpt_response.check_anwsers_length() && computed_similarlity <= 0.44_f64{
             let similarlity = previous_responses.query_similarlity(&gpt_response.question, 8).await?;
             println!("Similarlity from GPT: {}", &similarlity);
             if similarlity <= 0.35_f64 {
-                // println!("**** Using response as similarity <= 0.35 ***");
-                // let response = send_mastodon_poll(gpt_response.clone()).await?;
-                // println!("Response from mastodon server:");
-                // println!("{}", response);
+                println!("**** Using response as similarity <= 0.35 ***");
+                let response = send_mastodon_poll(gpt_response.clone()).await?;
+                println!("Response from mastodon server:");
+                println!("{}", response);
 
                 // save response
                 previous_responses.push(gpt_response.clone());
