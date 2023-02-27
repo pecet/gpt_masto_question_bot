@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use reqwest;
 use std::env;
 use std::fs;
+use str_distance::*;
 
 #[derive(Clone, Deserialize, Serialize, Debug)]
 struct GptResponse {
@@ -35,6 +36,28 @@ struct Similarity {
 impl PreviousGptResponses {
     fn push(&mut self, value: GptResponse) {
         self.responses.push(value);
+    }
+
+    fn normalize_string(&self, input: &String) -> String {
+        let output = input.to_ascii_lowercase();
+        let what_to_replace = vec!["what", "where", "who", "which", "do you", "whom", "consider", "opinion", "?", "think", "you", "to have"];
+        for from in what_to_replace {
+            output.replace(from, "");
+        }
+        output
+    }
+
+    fn compute_similarlity_of_all(&self, question_to_compare: &String) -> f64 {
+        let mut similarlity = 0.0_f64;
+        for response in &self.responses {
+            let first_string = self.normalize_string(&question_to_compare);
+            let second_string = self.normalize_string(&response.question);
+            let value = 1.0_f64 - str_distance_normalized(first_string, second_string, DamerauLevenshtein::default());
+            if value > similarlity {
+                similarlity = value;
+            }
+        }
+        similarlity
     }
 
     async fn query_similarlity(&self, question_to_compare: &String, take_last: i64) -> Result<f64, Box<dyn Error>> {
@@ -122,8 +145,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut previous_responses: PreviousGptResponses = serde_json::from_str(&previous_responses_string).unwrap_or(PreviousGptResponses::default());
     println!("Loaded {} previous responses", &previous_responses.responses.len());
 
-    let mut similarlity = 1.0;
-    let retries = 7;
+    let retries = 8;
 
     for i in 1..retries {
         println!("---- Going for GPT response retry: {} of {}", &i, &retries);
@@ -133,21 +155,26 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let gpt_response: GptResponse = serde_json::from_str(&gpt_response_string)?;
         println!("Successfully parsed JSON from gpt:");
         println!("{:#?}", &gpt_response);
-    
-        similarlity = previous_responses.query_similarlity(&gpt_response.question, 6).await?;
-        println!("Similarlity: {}", &similarlity);
-        if similarlity <= 0.35_f64 && gpt_response.check_anwsers_length() {
-            println!("**** Using response as similarity <= 0.35 ***");
-            let response = send_mastodon_poll(gpt_response.clone()).await?;
-            println!("Response from mastodon server:");
-            println!("{}", response);
 
-            // save response
-            previous_responses.push(gpt_response.clone());
-            let previous_responses_string = serde_json::to_string_pretty(&previous_responses)?;
-            fs::write(file_path, previous_responses_string)?;
-            println!("Response saved");
-            break;
+        let computed_similarlity = previous_responses.compute_similarlity_of_all(&gpt_response.question.to_owned());
+        println!("Similarlity computer locally: {}", computed_similarlity);
+    
+        if gpt_response.check_anwsers_length() && computed_similarlity <= 0.49_f64{
+            let similarlity = previous_responses.query_similarlity(&gpt_response.question, 8).await?;
+            println!("Similarlity from GPT: {}", &similarlity);
+            if similarlity <= 0.35_f64 {
+                // println!("**** Using response as similarity <= 0.35 ***");
+                // let response = send_mastodon_poll(gpt_response.clone()).await?;
+                // println!("Response from mastodon server:");
+                // println!("{}", response);
+
+                // save response
+                previous_responses.push(gpt_response.clone());
+                let previous_responses_string = serde_json::to_string_pretty(&previous_responses)?;
+                fs::write(file_path, previous_responses_string)?;
+                println!("Response saved");
+                break;
+            }
         }
     }
 
