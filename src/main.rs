@@ -1,10 +1,12 @@
 use std::{error::Error};
+use async_openai::types::{ChatCompletionRequestMessageArgs, Role, CreateChatCompletionRequestArgs};
 use async_openai::{types::CreateCompletionRequestArgs, Client};
 use serde::{Deserialize, Serialize};
 use reqwest;
 use std::env;
 use std::fs;
 use str_distance::*;
+use rand::prelude::*;
 
 #[derive(Clone, Deserialize, Serialize, Debug)]
 struct GptResponse {
@@ -41,7 +43,7 @@ impl PreviousGptResponses {
     fn normalize_string(&self, input: &String) -> String {
         let mut output = input.to_ascii_lowercase();
         let what_to_replace = vec![
-            "what", "where", "who", "which", "do you", "whom", "consider", "opinion", "?", 
+            "what", "where", "who", "which", "do", "whom", "consider", "opinion", "?", "does",
             "think", "you", "have", "be", "to", "as", "in", "ever", "have", "had", "if", "chance"
         ];
         for from in what_to_replace {
@@ -102,7 +104,7 @@ impl PreviousGptResponses {
     }
 }
 
-async fn query_gpt() -> Result<String, Box<dyn Error>> {
+async fn query_gpt3() -> Result<String, Box<dyn Error>> {
     let client = Client::new();
     let prompt = r#"Respond only with JSON containing field "question" and array "answers". Question should be random question about opinion. There should be 4 answers, each answer should be 35 chars max, last should be funny."#;
     let request = CreateCompletionRequestArgs::default()
@@ -117,6 +119,27 @@ async fn query_gpt() -> Result<String, Box<dyn Error>> {
     let first_response = response.choices.get(0).ok_or("No first item in response")?;
     Ok(first_response.text.to_owned())
 }
+
+async fn query_chat_gpt() -> Result<String, Box<dyn Error>> {
+    let client = Client::new();
+
+
+    let request = CreateChatCompletionRequestArgs::default()
+    .max_tokens(768u16)
+    .model("gpt-3.5-turbo")
+    .messages([
+        ChatCompletionRequestMessageArgs::default()
+            .role(Role::System)
+            .content("Respond only with JSON containing field 'question' and array 'answers'. There should be 4 answers, each answer should be 35 chars max. I need random question about opinion.")
+            .build()?,
+        ])
+    .build()?;
+    let response = client.chat().create(request).await?;
+    let first_response = response.choices.get(0).ok_or("No first item in response")?;
+    let first_response = first_response.message.content.to_owned();
+    Ok(first_response)
+}
+
 
 async fn send_mastodon_poll(gpt_response: GptResponse) -> Result<String, Box<dyn Error>> {
     let params = [
@@ -150,11 +173,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut previous_responses: PreviousGptResponses = serde_json::from_str(&previous_responses_string).unwrap_or(PreviousGptResponses::default());
     println!("Loaded {} previous responses", &previous_responses.responses.len());
 
-    let retries = 10;
+    let retries = 8;
 
     for i in 1..retries {
         println!("---- Going for GPT response retry: {} of {}", &i, &retries);
-        let gpt_response_string = query_gpt().await?;
+        let gpt_response_string = if thread_rng().gen_bool(0.85) {
+            println!("*** USING CHAT GPT ***");
+            query_chat_gpt().await?
+        } else {
+            println!("*** USING GPT3 ***");
+            query_gpt3().await?
+        };
         println!("Got response from mighty gpt:");
         println!("{}", &gpt_response_string);
         let gpt_response: GptResponse = serde_json::from_str(&gpt_response_string)?;
@@ -164,11 +193,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let computed_similarlity = previous_responses.compute_similarlity_of_all(&gpt_response.question.to_owned());
         println!("Similarlity computer locally: {}", computed_similarlity);
     
-        if gpt_response.check_anwsers_length() && computed_similarlity <= 0.44_f64{
+        if gpt_response.check_anwsers_length() && computed_similarlity <= 0.47_f64{
             let similarlity = previous_responses.query_similarlity(&gpt_response.question, 8).await?;
             println!("Similarlity from GPT: {}", &similarlity);
-            if similarlity <= 0.35_f64 {
-                println!("**** Using response as similarity <= 0.35 ***");
+            if similarlity <= 0.38_f64 {
+                println!("**** Using response as similarity <= 0.38 ***");
                 let response = send_mastodon_poll(gpt_response.clone()).await?;
                 println!("Response from mastodon server:");
                 println!("{}", response);
