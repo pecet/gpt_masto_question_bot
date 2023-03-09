@@ -106,7 +106,7 @@ impl PreviousGptResponses {
 
 async fn query_gpt3() -> Result<String, Box<dyn Error>> {
     let client = Client::new();
-    let prompt = r#"Respond only with JSON containing field "question" and array "answers". Question should be random question about opinion. There should be 4 answers, each answer should be 35 chars max, last should be funny."#;
+    let prompt = r#"Respond only with JSON containing field "question" and array "answers". Question should be random question about opinion. There should be 4 answers, each answer should be 35 chars max."#;
     let request = CreateCompletionRequestArgs::default()
         .model("text-davinci-003")
         .prompt(prompt)
