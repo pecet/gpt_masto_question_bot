@@ -143,7 +143,7 @@ async fn query_chat_gpt() -> Result<String, Box<dyn Error>> {
 
 async fn send_mastodon_poll(gpt_response: GptResponse) -> Result<String, Box<dyn Error>> {
     let params = [
-        ("status", gpt_response.question.clone()),
+        ("status", format!("{} \n🗳️ #poll #fedipoll", gpt_response.question)),
         ("visibility", "public".to_owned()),
         ("language", "en".to_owned()),
         ("poll[options][]", gpt_response.answers[0].clone()),
