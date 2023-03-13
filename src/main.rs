@@ -193,10 +193,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let computed_similarlity = previous_responses.compute_similarlity_of_all(&gpt_response.question.to_owned());
         println!("Similarlity computer locally: {}", computed_similarlity);
     
-        if gpt_response.check_anwsers_length() && computed_similarlity <= 0.47_f64{
+        if gpt_response.check_anwsers_length() && computed_similarlity <= 0.55_f64{
             let similarlity = previous_responses.query_similarlity(&gpt_response.question, 8).await?;
             println!("Similarlity from GPT: {}", &similarlity);
-            if similarlity <= 0.38_f64 {
+            if similarlity <= 0.41_f64 {
                 println!("**** Using response as similarity <= 0.38 ***");
                 let response = send_mastodon_poll(gpt_response.clone()).await?;
                 println!("Response from mastodon server:");
